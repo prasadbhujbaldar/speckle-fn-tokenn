@@ -1,0 +1,40 @@
+name: Publish Function Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      - name: Register release with Speckle engine
+        env:
+          ENGINE_URL: http://localhost:7071
+          FUNCTION_ID: 1508b033-6c6c-4806-a2de-27ab7cca61a3
+          FUNCTION_TOKEN: 89523b72-e308-47f5-86fc-fe7cefcbfee7
+        run: |
+          curl -s -X POST "$ENGINE_URL/api/v2/functions/$FUNCTION_ID/releases" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $FUNCTION_TOKEN" \
+            -d "{\"versionTag\": \"${{ github.sha }}\", \"commitId\": \"${{ github.sha }}\", \"image\": \"ghcr.io/${{ github.repository }}:${{ github.sha }}\"}"
